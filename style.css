@@ -76,7 +76,7 @@ body {
 /* Scanlines and phosphor grid overlay */
 .crt-overlay {
   content: " ";
-  display: block;
+  display: none; /* Default off */
   position: absolute;
   top: 0; left: 0; bottom: 0; right: 0;
   background: 
@@ -85,6 +85,10 @@ body {
   background-size: 100% 4px, 6px 100%;
   z-index: 10;
   pointer-events: none;
+}
+
+body.crt-enabled .crt-overlay {
+  display: block;
 }
 
 /* Static scroll noise line across screen */
@@ -97,6 +101,9 @@ body {
   opacity: 0;
   z-index: 10;
   pointer-events: none;
+}
+
+body.crt-enabled .crt-overlay::after {
   animation: scanline-scroll 8s linear infinite;
 }
 
@@ -108,6 +115,11 @@ body {
   opacity: 0;
   z-index: 9;
   pointer-events: none;
+  display: none; /* Default off */
+}
+
+body.crt-enabled .crt-flicker {
+  display: block;
   animation: flicker-animation 0.15s infinite;
 }
 
@@ -224,6 +236,12 @@ body {
   background: radial-gradient(circle, transparent 55%, rgba(0, 0, 0, 0.75) 120%);
   z-index: 8;
   pointer-events: none;
+  opacity: 0; /* Default off */
+  transition: opacity 0.3s ease;
+}
+
+body.crt-enabled .screen-frame::before {
+  opacity: 1;
 }
 
 /* Subtle curved screen shine */

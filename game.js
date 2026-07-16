@@ -1,6 +1,6 @@
 /**
- * Retro Wall Tennis - Game Engine
- * 70s-inspired local 2-player squash-style wall tennis game.
+ * Retro Wall Tennis - 3D Game Engine (Three.js Version)
+ * 70s-inspired local 2-player squash-style wall tennis game in 3D.
  */
 
 // ==========================================================================
@@ -11,15 +11,15 @@ const CONFIG = {
   canvasHeight: 600,
   paddleWidth: 16,
   paddleHeight: 90,
-  paddleSpeed: 7,
-  ballRadius: 8,
+  paddleSpeed: 13, // Double speed (was 7)
+  ballRadius: 10, // Slightly bigger for 3D visibility
   ballInitialSpeedMap: {
-    slow: 5,
-    normal: 7.5,
-    fast: 10
+    slow: 9,
+    normal: 15, // Double speed (was 7.5)
+    fast: 21  // Double speed (was 10)
   },
-  maxBounceAngle: 5, // Y-velocity modifier on paddle edge hit
-  speedIncrement: 0.25, // Speed increase on each bounce
+  maxBounceAngle: 9, // Deflection scale
+  speedIncrement: 0.5, // Double rate of speed increase (was 0.25)
   scoreToWin: 11
 };
 
@@ -36,7 +36,7 @@ const state = {
     trail: [] // Array of {x, y} for CRT phosphor persistence trail
   },
   p1: {
-    x: 40, // Back paddle
+    x: 40,
     y: 255,
     width: CONFIG.paddleWidth,
     height: CONFIG.paddleHeight,
@@ -45,7 +45,7 @@ const state = {
     glowColor: 'rgba(255, 51, 68, 0.8)'
   },
   p2: {
-    x: 75, // Front paddle (slightly shifted for visibility)
+    x: 75,
     y: 255,
     width: CONFIG.paddleWidth,
     height: CONFIG.paddleHeight,
@@ -57,13 +57,13 @@ const state = {
     initialSpeed: 'normal',
     maxScore: 11,
     theme: 'green',
-    soundEnabled: true
+    soundEnabled: true,
+    crtEnabled: false
   },
   // Serve variables
   isServing: false,
   serveTimer: 0,
   server: 'P1',
-  // Trail length config
   maxTrailLength: 6
 };
 
@@ -77,32 +77,63 @@ const touchState = {
 };
 
 // DOM Elements
-let canvas, ctx;
+let canvas;
 let scoreP1Val, scoreP2Val;
 let turnIndicator;
 let menuOverlay;
 let btnStart, btnSettings, btnPause, btnMenuSettings, btnCloseSettings;
 let settingsDialog;
-let selectSpeed, selectMaxScore, selectTheme, checkSound;
+let selectSpeed, selectMaxScore, selectTheme, checkSound, checkCrt;
 
 // Web Audio API Context
 let audioCtx = null;
+
+// ==========================================================================
+// Three.js 3D Graphics Engine Variables
+// ==========================================================================
+let scene, camera, renderer;
+let meshP1, meshP2, meshBall;
+let meshGrid, meshRightWall, meshTopWall, meshBottomWall;
+let pointLightBall, ambientLight, dirLight;
+let trailMeshes = [];
+
+// Theme Colors mapping for 3D elements
+const THEME_COLORS = {
+  green: {
+    primary: 0x00ff66,
+    bg: 0x050c06,
+    grid: 0x004411,
+    wall: 0x00bb44
+  },
+  amber: {
+    primary: 0xffb000,
+    bg: 0x0c0700,
+    grid: 0x442a00,
+    wall: 0xbb8000
+  },
+  monochrome: {
+    primary: 0xffffff,
+    bg: 0x0f0f0f,
+    grid: 0x333333,
+    wall: 0x888888
+  }
+};
 
 // ==========================================================================
 // Initialization & Event Binding
 // ==========================================================================
 window.addEventListener('DOMContentLoaded', () => {
   initDOM();
+  initThree();
   initEvents();
-  resizeCanvas();
+  applyTheme();
   
-  // Start the render loop (drawing static retro lines initially)
+  // Start the render loop
   requestAnimationFrame(gameLoop);
 });
 
 function initDOM() {
   canvas = document.getElementById('game-canvas');
-  ctx = canvas.getContext('2d');
   
   scoreP1Val = document.getElementById('score-p1-val');
   scoreP2Val = document.getElementById('score-p2-val');
@@ -121,9 +152,125 @@ function initDOM() {
   selectMaxScore = document.getElementById('select-max-score');
   selectTheme = document.getElementById('select-theme');
   checkSound = document.getElementById('check-sound');
+  checkCrt = document.getElementById('check-crt');
   
-  // Set initial settings state from DOM (defaults)
   readSettings();
+}
+
+function initThree() {
+  // 1. Create WebGL Renderer inside existing Canvas
+  renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  renderer.setSize(CONFIG.canvasWidth, CONFIG.canvasHeight, false);
+  renderer.setClearColor(0x000000, 1.0);
+  renderer.shadowMap.enabled = true;
+
+  // 2. Create 3D Scene
+  scene = new THREE.Scene();
+
+  // 3. Create Camera (斜め上のレトロクォータービュー)
+  camera = new THREE.PerspectiveCamera(48, CONFIG.canvasWidth / CONFIG.canvasHeight, 1, 2000);
+  // Positioned left, high, and front, looking towards center-right of the court
+  camera.position.set(-250, 160, 450);
+  camera.lookAt(100, 0, 0);
+
+  // 4. Lights
+  ambientLight = new THREE.AmbientLight(0xffffff, 0.15);
+  scene.add(ambientLight);
+
+  dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
+  dirLight.position.set(-200, -200, 300);
+  dirLight.castShadow = true;
+  scene.add(dirLight);
+
+  // Dynamic light attached to the ball (neon glow projection)
+  pointLightBall = new THREE.PointLight(0x00ff66, 1.5, 250);
+  pointLightBall.castShadow = true;
+
+  // 5. Build 3D Stage Meshes
+  // Map 2D coordinate system: (0, 0) top-left -> (800, 600) bottom-right
+  // 3D coordinates: X is horizontal (-400 to 400), Y is vertical (300 to -300)
+  
+  // Floor Grid (Z = -20)
+  const gridGeom = new THREE.PlaneGeometry(900, 680, 18, 14);
+  const gridMat = new THREE.MeshBasicMaterial({ color: 0x004411, wireframe: true });
+  meshGrid = new THREE.Mesh(gridGeom, gridMat);
+  meshGrid.position.set(50, 0, -20);
+  scene.add(meshGrid);
+
+  // Material for walls
+  const wallMat = new THREE.MeshStandardMaterial({ 
+    color: 0x00ff66, 
+    roughness: 0.4, 
+    metalness: 0.8 
+  });
+
+  // Right bounce wall (X = 400)
+  const rightWallGeom = new THREE.BoxGeometry(20, 640, 40);
+  meshRightWall = new THREE.Mesh(rightWallGeom, wallMat);
+  meshRightWall.position.set(400, 0, 0);
+  meshRightWall.receiveShadow = true;
+  scene.add(meshRightWall);
+
+  // Top Wall (Y = 300)
+  const topWallGeom = new THREE.BoxGeometry(840, 20, 40);
+  meshTopWall = new THREE.Mesh(topWallGeom, wallMat);
+  meshTopWall.position.set(-10, 300, 0);
+  meshTopWall.receiveShadow = true;
+  scene.add(meshTopWall);
+
+  // Bottom Wall (Y = -300)
+  meshBottomWall = new THREE.Mesh(topWallGeom, wallMat);
+  meshBottomWall.position.set(-10, -300, 0);
+  meshBottomWall.receiveShadow = true;
+  scene.add(meshBottomWall);
+
+  // 6. Build 3D Paddles (BoxGeometry)
+  const paddleGeom = new THREE.BoxGeometry(CONFIG.paddleWidth, CONFIG.paddleHeight, 30);
+  
+  const p1Mat = new THREE.MeshStandardMaterial({ 
+    color: 0xff3344, 
+    emissive: 0xff3344, 
+    emissiveIntensity: 0.6,
+    roughness: 0.2
+  });
+  meshP1 = new THREE.Mesh(paddleGeom, p1Mat);
+  meshP1.castShadow = true;
+  scene.add(meshP1);
+
+  const p2Mat = new THREE.MeshStandardMaterial({ 
+    color: 0x3388ff, 
+    emissive: 0x3388ff, 
+    emissiveIntensity: 0.6,
+    roughness: 0.2
+  });
+  meshP2 = new THREE.Mesh(paddleGeom, p2Mat);
+  meshP2.castShadow = true;
+  scene.add(meshP2);
+
+  // 7. Build 3D Ball (Sphere)
+  const ballGeom = new THREE.SphereGeometry(CONFIG.ballRadius, 24, 24);
+  const ballMat = new THREE.MeshStandardMaterial({ 
+    color: 0xffffff, 
+    emissive: 0xffffff, 
+    emissiveIntensity: 0.8 
+  });
+  meshBall = new THREE.Mesh(ballGeom, ballMat);
+  meshBall.castShadow = true;
+  meshBall.add(pointLightBall); // Attach neon point light
+  scene.add(meshBall);
+
+  // 8. Build 3D Trail Meshes (pooling static spheres)
+  const trailGeom = new THREE.SphereGeometry(CONFIG.ballRadius * 0.9, 16, 16);
+  for (let i = 0; i < state.maxTrailLength; i++) {
+    const trailMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.0
+    });
+    const trailMesh = new THREE.Mesh(trailGeom, trailMat);
+    scene.add(trailMesh);
+    trailMeshes.push(trailMesh);
+  }
 }
 
 function initEvents() {
@@ -149,12 +296,10 @@ function initEvents() {
   window.addEventListener('keydown', (e) => {
     keysPressed[e.key] = true;
     
-    // Prevent default scrolling for arrows and spacebar during game play
     if (['ArrowUp', 'ArrowDown', ' ', 'w', 's', 'W', 'S'].includes(e.key) && state.gameState === 'PLAYING') {
       e.preventDefault();
     }
 
-    // Spacebar to pause
     if (e.key === ' ' && (state.gameState === 'PLAYING' || state.gameState === 'PAUSED')) {
       togglePause();
     }
@@ -163,9 +308,6 @@ function initEvents() {
   window.addEventListener('keyup', (e) => {
     keysPressed[e.key] = false;
   });
-
-  // Resize canvas when window size changes
-  window.addEventListener('resize', resizeCanvas);
 
   // Touch controls binding
   const zoneP1 = document.getElementById('zone-p1');
@@ -194,13 +336,12 @@ function setupTouchZone(element, playerKey) {
     const touch = e.touches[0];
     const diffY = touch.clientY - touchState[playerKey].startY;
     
-    // Smoothly scale Y motion relative to canvas sizing
+    // Scale motion to canvas coordinate space
     const rect = canvas.getBoundingClientRect();
     const scaleY = canvas.height / rect.height;
     
     let targetY = touchState[playerKey].paddleY + diffY * scaleY;
     
-    // Keep in bounds
     targetY = Math.max(0, Math.min(canvas.height - CONFIG.paddleHeight, targetY));
     state[playerKey].y = targetY;
   }, { passive: false });
@@ -208,11 +349,6 @@ function setupTouchZone(element, playerKey) {
   element.addEventListener('touchend', (e) => {
     touchState[playerKey].active = false;
   });
-}
-
-function resizeCanvas() {
-  // Visual layout handling is managed by CSS via object-fit,
-  // so we keep the logical canvas resolution constant.
 }
 
 // ==========================================================================
@@ -223,15 +359,49 @@ function readSettings() {
   state.settings.maxScore = parseInt(selectMaxScore.value, 10);
   state.settings.theme = selectTheme.value;
   state.settings.soundEnabled = checkSound.checked;
+  state.settings.crtEnabled = checkCrt.checked;
   
   CONFIG.scoreToWin = state.settings.maxScore;
 }
 
 function applyTheme() {
-  // Remove all theme classes
+  // 1. Update HTML/CSS Theme Class
   document.body.classList.remove('crt-theme-green', 'crt-theme-amber', 'crt-theme-monochrome');
-  // Add selected theme class
   document.body.classList.add(`crt-theme-${state.settings.theme}`);
+
+  // 2. Update 3D Colors based on theme
+  const theme = THEME_COLORS[state.settings.theme];
+  if (!theme) return;
+
+  renderer.setClearColor(theme.bg, 1.0);
+  meshGrid.material.color.setHex(theme.grid);
+  meshRightWall.material.color.setHex(theme.wall);
+  meshTopWall.material.color.setHex(theme.wall);
+  meshBottomWall.material.color.setHex(theme.wall);
+
+  // Sync ball glow light color
+  if (state.settings.theme === 'monochrome') {
+    pointLightBall.color.setHex(0xffffff);
+    // Neutralize paddle materials for monochrome
+    meshP1.material.color.setHex(0xffffff);
+    meshP1.material.emissive.setHex(0xffffff);
+    meshP2.material.color.setHex(0xaaaaaa);
+    meshP2.material.emissive.setHex(0xaaaaaa);
+  } else {
+    pointLightBall.color.setHex(theme.primary);
+    // Restore red and blue neon for color themes
+    meshP1.material.color.setHex(0xff3344);
+    meshP1.material.emissive.setHex(0xff3344);
+    meshP2.material.color.setHex(0x3388ff);
+    meshP2.material.emissive.setHex(0x3388ff);
+  }
+
+  // Toggle CRT class on body
+  if (state.settings.crtEnabled) {
+    document.body.classList.add('crt-enabled');
+  } else {
+    document.body.classList.remove('crt-enabled');
+  }
 }
 
 // ==========================================================================
@@ -246,9 +416,6 @@ function initAudioContext() {
   }
 }
 
-/**
- * Generate synthetic retro sound effects using OscillatorNodes
- */
 function playBeep(frequency, type = 'square', duration = 0.1, slideToFreq = null) {
   if (!state.settings.soundEnabled) return;
   initAudioContext();
@@ -265,7 +432,6 @@ function playBeep(frequency, type = 'square', duration = 0.1, slideToFreq = null
   }
 
   gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
-  // Smooth volume envelope to avoid audio clicks
   gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
 
   osc.connect(gain);
@@ -276,7 +442,7 @@ function playBeep(frequency, type = 'square', duration = 0.1, slideToFreq = null
 }
 
 function playWinSound() {
-  const notes = [261.63, 329.63, 392.00, 523.25]; // C E G C melody
+  const notes = [261.63, 329.63, 392.00, 523.25];
   notes.forEach((freq, index) => {
     setTimeout(() => {
       playBeep(freq, 'triangle', 0.15);
@@ -304,18 +470,16 @@ function startGame() {
   menuOverlay.style.display = 'none';
   btnPause.disabled = false;
   
-  // Initial serve
   state.server = Math.random() > 0.5 ? 'P1' : 'P2';
   setupServe();
   
-  playBeep(523.25, 'triangle', 0.2); // Start game chime
+  playBeep(523.25, 'triangle', 0.2);
 }
 
 function togglePause() {
   if (state.gameState === 'PLAYING') {
     state.gameState = 'PAUSED';
     btnPause.innerText = 'RESUME';
-    // Show partial overlay
     menuOverlay.style.display = 'flex';
     menuOverlay.querySelector('.overlay-title').innerText = 'PAUSED';
     menuOverlay.querySelector('.overlay-subtitle').innerText = 'スペースキーまたはRESUMEボタンで再開';
@@ -344,13 +508,12 @@ function gameOver(winnerName) {
 
 function setupServe() {
   state.isServing = true;
-  state.serveTimer = 90; // Frame count countdown (~1.5s)
+  state.serveTimer = 90;
   state.turn = state.server;
   
   const ball = state.ball;
   ball.trail = [];
   
-  // Place ball in front of the server's paddle
   const serverPaddle = state.server === 'P1' ? state.p1 : state.p2;
   ball.x = serverPaddle.x + serverPaddle.width + CONFIG.ballRadius + 2;
   ball.y = serverPaddle.y + serverPaddle.height / 2;
@@ -365,12 +528,10 @@ function fireServe() {
   state.isServing = false;
   const ball = state.ball;
   
-  // Serve towards the wall (right side)
   ball.dx = ball.speed;
-  // Random slight vertical angle
   ball.dy = (Math.random() * 2 - 1) * (ball.speed * 0.4);
   
-  playBeep(587.33, 'square', 0.1); // Serve beep
+  playBeep(587.33, 'square', 0.1);
 }
 
 function swapTurn() {
@@ -382,7 +543,6 @@ function updateHUD() {
   const activeName = state.turn === 'P1' ? 'P1 TURN (RED)' : 'P2 TURN (BLUE)';
   turnIndicator.innerText = activeName;
   
-  // Visual indicators on HUD
   turnIndicator.style.borderColor = state.turn === 'P1' ? 'var(--color-p1)' : 'var(--color-p2)';
   turnIndicator.style.textShadow = state.turn === 'P1' ? '0 0 5px var(--color-p1-glow)' : '0 0 5px var(--color-p2-glow)';
 }
@@ -407,12 +567,11 @@ function updatePhysics() {
   // 1. Paddle movement based on keys
   movePaddles();
 
-  // 2. Handle Gamepad Input if active
+  // 2. Handle Gamepad Input
   handleGamepads();
 
   // 3. Serve Countdown Handling
   if (state.isServing) {
-    // Keep ball locked to server paddle center before fire
     const serverPaddle = state.server === 'P1' ? state.p1 : state.p2;
     state.ball.x = serverPaddle.x + serverPaddle.width + CONFIG.ballRadius + 2;
     state.ball.y = serverPaddle.y + serverPaddle.height / 2;
@@ -421,7 +580,7 @@ function updatePhysics() {
     if (state.serveTimer <= 0) {
       fireServe();
     }
-    return; // Skip ball movement during serve setup
+    return;
   }
 
   // 4. Ball motion physics
@@ -437,62 +596,49 @@ function updatePhysics() {
   ball.y += ball.dy;
 
   // 5. Wall bounce collisions (Top, Bottom, Right)
-  // Top Wall
   if (ball.y - CONFIG.ballRadius <= 0) {
     ball.y = CONFIG.ballRadius;
     ball.dy = -ball.dy;
-    playBeep(220, 'triangle', 0.08); // Low tone for wall hit
+    playBeep(220, 'triangle', 0.08);
   }
-  // Bottom Wall
   if (ball.y + CONFIG.ballRadius >= CONFIG.canvasHeight) {
     ball.y = CONFIG.canvasHeight - CONFIG.ballRadius;
     ball.dy = -ball.dy;
     playBeep(220, 'triangle', 0.08);
   }
-  // Right Wall (Primary reflection wall)
   if (ball.x + CONFIG.ballRadius >= CONFIG.canvasWidth) {
     ball.x = CONFIG.canvasWidth - CONFIG.ballRadius;
     ball.dx = -ball.dx;
-    playBeep(293.66, 'triangle', 0.08); // Mid-tone for back wall
+    playBeep(293.66, 'triangle', 0.08);
   }
 
-  // 6. Paddle Collisions (Only test active player's paddle)
+  // 6. Paddle Collisions
   const activePaddle = state.turn === 'P1' ? state.p1 : state.p2;
   
-  // Check if ball intersects active paddle
-  // Standard AABB collision check
   if (
-    ball.dx < 0 && // Only check collision if ball is moving left towards paddles
+    ball.dx < 0 &&
     ball.x - CONFIG.ballRadius <= activePaddle.x + activePaddle.width &&
     ball.x + CONFIG.ballRadius >= activePaddle.x &&
     ball.y + CONFIG.ballRadius >= activePaddle.y &&
     ball.y - CONFIG.ballRadius <= activePaddle.y + activePaddle.height
   ) {
-    // Collision detected! Bounce back right
     ball.x = activePaddle.x + activePaddle.width + CONFIG.ballRadius;
     ball.dx = -ball.dx;
 
-    // Calculate Y deflection based on where ball hits paddle (center is 0, edges scale to max angle)
     const relativeY = (ball.y - (activePaddle.y + activePaddle.height / 2)) / (activePaddle.height / 2);
     ball.dy = relativeY * CONFIG.maxBounceAngle;
 
-    // Increment speed slightly for progressive difficulty
     ball.speed += CONFIG.speedIncrement;
-    // Keep direction but scale up speed
     const currentSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
     ball.dx = (ball.dx / currentSpeed) * ball.speed;
     ball.dy = (ball.dy / currentSpeed) * ball.speed;
 
-    // Play hit sound
     playBeep(state.turn === 'P1' ? 440 : 493.88, 'square', 0.1);
-
-    // Bounce successful: Swap turn to the other player
     swapTurn();
   }
 
   // 7. Left Boundary Breach (Score event)
   if (ball.x - CONFIG.ballRadius < 0) {
-    // Current turn player failed to return. Opponent scores!
     const scorer = state.turn === 'P1' ? 'P2' : 'P1';
     
     if (scorer === 'P1') {
@@ -509,7 +655,6 @@ function updatePhysics() {
     } else if (state.p2.score >= CONFIG.scoreToWin) {
       gameOver('P2 (BLUE)');
     } else {
-      // Setup next serve. Scorer serves.
       state.server = scorer;
       setupServe();
     }
@@ -517,7 +662,6 @@ function updatePhysics() {
 }
 
 function movePaddles() {
-  // P1 Control: W (Up), S (Down)
   if (keysPressed['w'] || keysPressed['W']) {
     state.p1.y = Math.max(0, state.p1.y - CONFIG.paddleSpeed);
   }
@@ -525,7 +669,6 @@ function movePaddles() {
     state.p1.y = Math.min(CONFIG.canvasHeight - CONFIG.paddleHeight, state.p1.y + CONFIG.paddleSpeed);
   }
 
-  // P2 Control: ArrowUp, ArrowDown
   if (keysPressed['ArrowUp']) {
     state.p2.y = Math.max(0, state.p2.y - CONFIG.paddleSpeed);
   }
@@ -534,23 +677,16 @@ function movePaddles() {
   }
 }
 
-/**
- * Gamepad API implementation for local dual play
- */
 function handleGamepads() {
   const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-  
-  // Gamepad 1 controls P1, Gamepad 2 controls P2 (or fallback to Gamepad 1 second stick)
   const gp1 = gamepads[0];
   const gp2 = gamepads[1];
 
   if (gp1) {
-    // Joystick Y-Axis
     const stickY = gp1.axes[1];
-    if (Math.abs(stickY) > 0.15) { // Deadzone check
+    if (Math.abs(stickY) > 0.15) {
       state.p1.y = Math.max(0, Math.min(CONFIG.canvasHeight - CONFIG.paddleHeight, state.p1.y + stickY * CONFIG.paddleSpeed));
     }
-    // D-pad Up / Down (buttons 12 / 13)
     if (gp1.buttons[12]?.pressed) {
       state.p1.y = Math.max(0, state.p1.y - CONFIG.paddleSpeed);
     }
@@ -571,7 +707,6 @@ function handleGamepads() {
       state.p2.y = Math.min(CONFIG.canvasHeight - CONFIG.paddleHeight, state.p2.y + CONFIG.paddleSpeed);
     }
   } else if (gp1 && gp1.axes.length >= 4) {
-    // Fallback: If only 1 gamepad is connected, map Stick 2 (axes 3) to Player 2
     const stick2Y = gp1.axes[3];
     if (Math.abs(stick2Y) > 0.15) {
       state.p2.y = Math.max(0, Math.min(CONFIG.canvasHeight - CONFIG.paddleHeight, state.p2.y + stick2Y * CONFIG.paddleSpeed));
@@ -580,132 +715,95 @@ function handleGamepads() {
 }
 
 // ==========================================================================
-// Rendering Engine (CRT glow & trail effect)
+// Rendering Engine (Three.js WebGL & 3D Coordinate Mapping)
 // ==========================================================================
 function render() {
-  // Clear with dark scanline backdrop color
-  ctx.fillStyle = '#000000';
-  ctx.fillRect(0, 0, CONFIG.canvasWidth, CONFIG.canvasHeight);
-
-  // Draw background grids (retro guidelines)
-  drawBackgroundDecors();
-
-  // Draw paddles
-  drawPaddle(state.p1, state.turn === 'P1');
-  drawPaddle(state.p2, state.turn === 'P2');
-
-  // Draw ball (and trail)
-  drawBall();
-}
-
-function drawBackgroundDecors() {
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
-  ctx.lineWidth = 2;
+  // Update 3D object coordinates based on internal 2D physics values
   
-  // Right Wall border line
-  ctx.beginPath();
-  ctx.moveTo(CONFIG.canvasWidth - 5, 0);
-  ctx.lineTo(CONFIG.canvasWidth - 5, CONFIG.canvasHeight);
-  ctx.stroke();
-
-  // Center horizontal net/dashed line to split space visually
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-  ctx.setLineDash([10, 15]);
-  ctx.beginPath();
-  ctx.moveTo(110, CONFIG.canvasHeight / 2);
-  ctx.lineTo(CONFIG.canvasWidth, CONFIG.canvasHeight / 2);
-  ctx.stroke();
-  ctx.setLineDash([]); // Reset dash pattern
-}
-
-function drawPaddle(paddle, isActive) {
-  // Save context state
-  ctx.save();
-
-  // Color scheme: active player is full color, waiting player is faded
-  let strokeColor, fillColor, glowColor;
+  // 1. Map 2D coordinates to 3D space
+  // 2D bounds: X is [0 to 800], Y is [0 to 600]
+  // 3D bounds: X mapping is [x - 400], Y mapping is [-(y - 300)]
   
-  if (state.settings.theme === 'monochrome') {
-    strokeColor = paddle.color;
-    fillColor = isActive ? paddle.color : 'rgba(255, 255, 255, 0.15)';
-    glowColor = isActive ? paddle.glowColor : 'transparent';
-  } else {
-    strokeColor = paddle.color;
-    fillColor = isActive ? paddle.color : 'rgba(255, 255, 255, 0.05)'; // Super transparent if inactive
-    glowColor = isActive ? paddle.glowColor : 'transparent';
+  // Update Paddle P1 position
+  const p1X_3d = state.p1.x + state.p1.width / 2 - 400;
+  const p1Y_3d = -(state.p1.y + state.p1.height / 2 - 300);
+  meshP1.position.set(p1X_3d, p1Y_3d, 0);
+
+  // Update Paddle P2 position
+  const p2X_3d = state.p2.x + state.p2.width / 2 - 400;
+  const p2Y_3d = -(state.p2.y + state.p2.height / 2 - 300);
+  meshP2.position.set(p2X_3d, p2Y_3d, 0);
+
+  // Visual opacity feedback for turn status
+  const p1Active = state.turn === 'P1';
+  meshP1.material.opacity = p1Active ? 1.0 : 0.22;
+  meshP1.material.transparent = true;
+  meshP2.material.opacity = !p1Active ? 1.0 : 0.22;
+  meshP2.material.transparent = true;
+
+  // Update Ball position
+  const ballX_3d = state.ball.x - 400;
+  const ballY_3d = -(state.ball.y - 300);
+  
+  // Add a slight bounce height (Z axis bounce effect on hits)
+  let ballZ_3d = 0;
+  if (!state.isServing) {
+    // Fake elevation curve based on absolute speed components (cos curve)
+    ballZ_3d = Math.abs(Math.sin(state.ball.x * 0.015)) * 15;
   }
+  meshBall.position.set(ballX_3d, ballY_3d, ballZ_3d);
 
-  // CRT glow (heavy shadow blur)
-  if (isActive) {
-    ctx.shadowColor = glowColor;
-    ctx.shadowBlur = 15;
-  }
-  
-  ctx.fillStyle = fillColor;
-  ctx.strokeStyle = strokeColor;
-  ctx.lineWidth = 3;
-
-  // Rounded retro rectangle style
-  const r = 4; // corner radius
-  const x = paddle.x;
-  const y = paddle.y;
-  const w = paddle.width;
-  const h = paddle.height;
-
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  // Restore context state
-  ctx.restore();
-}
-
-function drawBall() {
-  const ball = state.ball;
-  
-  ctx.save();
-
-  // Color matching current active player
-  let ballColor = 'var(--color-primary)';
-  let ballGlow = 'var(--color-glow)';
-  
-  if (state.settings.theme !== 'monochrome') {
-    ballColor = state.turn === 'P1' ? state.p1.color : state.p2.color;
-    ballGlow = state.turn === 'P1' ? state.p1.glowColor : state.p2.glowColor;
-  }
-
-  // 1. Draw trail (persistence effect)
-  ball.trail.forEach((pos, index) => {
-    const alpha = (index + 1) / (ball.trail.length * 2.5); // Fade trail out
-    ctx.fillStyle = ballColor;
-    ctx.globalAlpha = alpha;
-    
-    ctx.beginPath();
-    ctx.arc(pos.x, pos.y, CONFIG.ballRadius * (0.6 + index * 0.08), 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  // 2. Draw actual active ball
-  ctx.globalAlpha = 1.0;
-  ctx.shadowColor = ballGlow;
-  ctx.shadowBlur = 18;
-  ctx.fillStyle = ballColor;
-
-  // Serve blink
+  // Serve blink visual
   if (state.isServing && Math.floor(Date.now() / 200) % 2 === 0) {
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    meshBall.visible = false;
+    pointLightBall.intensity = 0.0;
+  } else {
+    meshBall.visible = true;
+    pointLightBall.intensity = 2.0;
   }
 
-  ctx.beginPath();
-  ctx.arc(ball.x, ball.y, CONFIG.ballRadius, 0, Math.PI * 2);
-  ctx.fill();
+  // Update light color & trail colors to match current turn player
+  if (state.settings.theme !== 'monochrome') {
+    const activeColor = p1Active ? 0xff3344 : 0x3388ff;
+    pointLightBall.color.setHex(activeColor);
+    meshBall.material.color.setHex(activeColor);
+    meshBall.material.emissive.setHex(activeColor);
+  } else {
+    meshBall.material.color.setHex(0xffffff);
+    meshBall.material.emissive.setHex(0xffffff);
+  }
 
-  ctx.restore();
+  // 2. Render 3D Trail
+  // Sync trail meshes to state.ball.trail history array
+  const trailLen = state.ball.trail.length;
+  for (let i = 0; i < state.maxTrailLength; i++) {
+    const trailMesh = trailMeshes[i];
+    if (i < trailLen && !state.isServing) {
+      const pt = state.ball.trail[i];
+      const tx = pt.x - 400;
+      const ty = -(pt.y - 300);
+      const tz = Math.abs(Math.sin(pt.x * 0.015)) * 12; // trace Z height
+      
+      trailMesh.position.set(tx, ty, tz);
+      trailMesh.visible = true;
+
+      // Setup fade out opacity and scale towards the tail
+      const progress = (i + 1) / trailLen;
+      trailMesh.material.opacity = progress * 0.15;
+      trailMesh.material.transparent = true;
+      trailMesh.scale.setScalar(0.5 + progress * 0.5);
+
+      // Set trail color matching active color
+      if (state.settings.theme !== 'monochrome') {
+        trailMesh.material.color.setHex(p1Active ? 0xff3344 : 0x3388ff);
+      } else {
+        trailMesh.material.color.setHex(0xffffff);
+      }
+    } else {
+      trailMesh.visible = false;
+    }
+  }
+
+  // 3. Render Three.js WebGL Scene
+  renderer.render(scene, camera);
 }

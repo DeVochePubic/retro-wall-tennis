@@ -121,6 +121,12 @@
           <input type="checkbox" id="check-sound" checked>
           <label for="check-sound">レトロサウンド効果音を有効化</label>
         </div>
+
+        <!-- CRT Effect Toggle -->
+        <div class="setting-group checkbox-group">
+          <input type="checkbox" id="check-crt">
+          <label for="check-crt">ブラウン管エフェクト（走査線・歪み）</label>
+        </div>
       </div>
 
       <footer class="dialog-footer">
@@ -130,6 +136,8 @@
     </form>
   </dialog>
 
+  <!-- Three.js Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="game.js"></script>
 </body>
 </html>
