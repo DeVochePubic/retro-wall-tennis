@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>テレビ壁打ちテニス | Retro Wall Tennis</title>
+  <meta name="description" content="70年代のレトロなビデオゲームにインスパイアされた、二人で遊べる壁打ちテニスゲーム。ブラウン管の風合いと心地よいピコピコ音で対戦を楽しもう。">
+  
+  <!-- Google Fonts for Retro Aesthetics -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="crt-theme-green">
+  <!-- Scanline and Flicker Effects for CRT Simulator -->
+  <div class="crt-overlay"></div>
+  <div class="crt-flicker"></div>
+
+  <main class="game-container">
+    <header class="game-header">
+      <h1 class="game-title">TV-WALL TENNIS</h1>
+      <div class="scoreboard" aria-label="スコアボード">
+        <div class="score-p1">
+          <span class="player-label">P1 (RED)</span>
+          <span id="score-p1-val" class="score-val">00</span>
+        </div>
+        <div class="score-separator">:</div>
+        <div class="score-p2">
+          <span class="player-label">P2 (BLUE)</span>
+          <span id="score-p2-val" class="score-val">00</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Game screen frame representing a 70s CRT TV -->
+    <div class="screen-frame">
+      <div class="screen-inner">
+        <canvas id="game-canvas" width="800" height="600" aria-label="ゲーム画面"></canvas>
+        
+        <!-- Turn indicator HUD overlay inside screen -->
+        <div id="turn-indicator" class="hud-overlay" aria-live="polite">
+          P1 TURN
+        </div>
+
+        <!-- Startup / Pause Screen overlay -->
+        <div id="menu-overlay" class="menu-overlay">
+          <div class="overlay-content">
+            <h2 class="overlay-title">RETRO WALL TENNIS</h2>
+            <p class="overlay-subtitle">二人で交互に壁に打ち返せ！</p>
+            <button id="btn-start" class="btn btn-primary" type="button">GAME START</button>
+            <button id="btn-settings" class="btn btn-secondary" type="button">SETTINGS</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile Touch Control Overlays (Hidden by default, shown on touch devices) -->
+    <div class="mobile-controls" id="mobile-controls">
+      <div class="touch-zone zone-left" id="zone-p1">
+        <span class="touch-label">P1 CONTROL</span>
+      </div>
+      <div class="touch-zone zone-right" id="zone-p2">
+        <span class="touch-label">P2 CONTROL</span>
+      </div>
+    </div>
+
+    <footer class="game-footer">
+      <div class="controls-guide">
+        <p><strong>P1:</strong> W/S キーで移動</p>
+        <p><strong>P2:</strong> ↑/↓ キーで移動</p>
+      </div>
+      <div class="actions">
+        <button id="btn-pause" class="btn btn-small" type="button" disabled>PAUSE</button>
+        <button id="btn-menu-settings" class="btn btn-small" type="button">SETTINGS</button>
+      </div>
+    </footer>
+  </main>
+
+  <!-- Settings Dialog (HTML5 Dialog element for accessibility) -->
+  <dialog id="settings-dialog" class="glass-modal">
+    <form method="dialog" class="dialog-form">
+      <header class="dialog-header">
+        <h2>GAME SETTINGS</h2>
+      </header>
+      
+      <div class="dialog-body">
+        <!-- Game Speed -->
+        <div class="setting-group">
+          <label for="select-speed">ボール初期速度:</label>
+          <select id="select-speed">
+            <option value="slow">遅い (Classic)</option>
+            <option value="normal" selected>普通 (Standard)</option>
+            <option value="fast">速い (Expert)</option>
+          </select>
+        </div>
+
+        <!-- Target Score -->
+        <div class="setting-group">
+          <label for="select-max-score">勝利スコア:</label>
+          <select id="select-max-score">
+            <option value="5">5 点</option>
+            <option value="11" selected>11 点</option>
+            <option value="15">15 点</option>
+          </select>
+        </div>
+
+        <!-- Color Theme -->
+        <div class="setting-group">
+          <label for="select-theme">カラーテーマ:</label>
+          <select id="select-theme">
+            <option value="green" selected>レトロ・グリーン (CRT Green)</option>
+            <option value="amber">レトロ・アンバー (CRT Amber)</option>
+            <option value="monochrome">白黒モノクロ (Classic TV)</option>
+          </select>
+        </div>
+
+        <!-- Sound Toggle -->
+        <div class="setting-group checkbox-group">
+          <input type="checkbox" id="check-sound" checked>
+          <label for="check-sound">レトロサウンド効果音を有効化</label>
+        </div>
+      </div>
+
+      <footer class="dialog-footer">
+        <button id="btn-close-settings" class="btn btn-secondary" type="button">閉じる</button>
+        <button class="btn btn-primary" type="submit">保存して適用</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <script src="game.js"></script>
+</body>
+</html>

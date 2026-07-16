@@ -1,0 +1,595 @@
+/* ==========================================================================
+   Design System Variables & Themes
+   ========================================================================== */
+
+/* CRT Theme: Green (Default) */
+.crt-theme-green {
+  --color-primary: #00ff66;
+  --color-primary-dim: rgba(0, 255, 102, 0.25);
+  --color-primary-very-dim: rgba(0, 255, 102, 0.08);
+  --color-bg: #050c06;
+  --color-bg-panel: rgba(10, 25, 15, 0.7);
+  --color-glow: rgba(0, 255, 102, 0.6);
+  --color-glow-heavy: rgba(0, 255, 102, 0.95);
+  --color-p1: #ff3344;
+  --color-p1-glow: rgba(255, 51, 68, 0.6);
+  --color-p2: #3388ff;
+  --color-p2-glow: rgba(51, 136, 255, 0.6);
+}
+
+/* CRT Theme: Amber */
+.crt-theme-amber {
+  --color-primary: #ffb000;
+  --color-primary-dim: rgba(255, 176, 0, 0.25);
+  --color-primary-very-dim: rgba(255, 176, 0, 0.08);
+  --color-bg: #0c0700;
+  --color-bg-panel: rgba(25, 15, 0, 0.7);
+  --color-glow: rgba(255, 176, 0, 0.6);
+  --color-glow-heavy: rgba(255, 176, 0, 0.95);
+  --color-p1: #ff5533;
+  --color-p1-glow: rgba(255, 85, 51, 0.6);
+  --color-p2: #00ddff;
+  --color-p2-glow: rgba(0, 221, 255, 0.6);
+}
+
+/* CRT Theme: Monochrome (Classic White) */
+.crt-theme-monochrome {
+  --color-primary: #ffffff;
+  --color-primary-dim: rgba(255, 255, 255, 0.25);
+  --color-primary-very-dim: rgba(255, 255, 255, 0.08);
+  --color-bg: #0f0f0f;
+  --color-bg-panel: rgba(30, 30, 30, 0.7);
+  --color-glow: rgba(255, 255, 255, 0.5);
+  --color-glow-heavy: rgba(255, 255, 255, 0.9);
+  --color-p1: #dcdcdc;
+  --color-p1-glow: rgba(220, 220, 220, 0.5);
+  --color-p2: #9b9b9b;
+  --color-p2-glow: rgba(155, 155, 155, 0.5);
+}
+
+/* ==========================================================================
+   Base & Reset Styles
+   ========================================================================== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-primary);
+  font-family: 'Share Tech Mono', monospace;
+  overflow: hidden;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: background-color 0.5s ease, color 0.5s ease;
+  position: relative;
+}
+
+/* ==========================================================================
+   CRT Simulation Filters & Effects
+   ========================================================================== */
+
+/* Scanlines and phosphor grid overlay */
+.crt-overlay {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0; left: 0; bottom: 0; right: 0;
+  background: 
+    linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.3) 50%), 
+    linear-gradient(90deg, rgba(255, 0, 0, 0.04), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.04));
+  background-size: 100% 4px, 6px 100%;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* Static scroll noise line across screen */
+.crt-overlay::after {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 100%;
+  background: rgba(18, 16, 16, 0.1);
+  opacity: 0;
+  z-index: 10;
+  pointer-events: none;
+  animation: scanline-scroll 8s linear infinite;
+}
+
+/* Screen Flicker to emulate refresh rate jitter */
+.crt-flicker {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(18, 16, 16, 0.02);
+  opacity: 0;
+  z-index: 9;
+  pointer-events: none;
+  animation: flicker-animation 0.15s infinite;
+}
+
+/* ==========================================================================
+   Layout Containers
+   ========================================================================== */
+.game-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 95vw;
+  max-width: 900px;
+  height: 95vh;
+  max-height: 800px;
+  padding: 15px;
+  position: relative;
+  z-index: 2;
+}
+
+/* Header & Scoreboard */
+.game-header {
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.game-title {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 1.4rem;
+  letter-spacing: 2px;
+  color: var(--color-primary);
+  text-shadow: 0 0 10px var(--color-glow-heavy);
+  margin-bottom: 5px;
+}
+
+.scoreboard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  background-color: var(--color-bg-panel);
+  border: 2px solid var(--color-primary-dim);
+  border-radius: 4px;
+  padding: 8px 30px;
+  box-shadow: inset 0 0 10px var(--color-primary-very-dim), 0 0 10px var(--color-primary-very-dim);
+}
+
+.score-p1, .score-p2 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.player-label {
+  font-size: 0.75rem;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+  opacity: 0.8;
+}
+
+.score-p1 .player-label {
+  color: var(--color-p1);
+  text-shadow: 0 0 5px var(--color-p1-glow);
+}
+
+.score-p2 .player-label {
+  color: var(--color-p2);
+  text-shadow: 0 0 5px var(--color-p2-glow);
+}
+
+.score-val {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 2.2rem;
+  font-weight: 700;
+  text-shadow: 0 0 8px var(--color-glow);
+}
+
+.score-separator {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 2rem;
+  animation: pulse-colon 1s infinite steps(2);
+}
+
+/* ==========================================================================
+   70s TV Screen Frame (CRT simulation)
+   ========================================================================== */
+.screen-frame {
+  flex-grow: 1;
+  width: 100%;
+  background: #111;
+  border: 12px solid #2e2e2e;
+  border-radius: 40px / 30px;
+  box-shadow: 
+    0 20px 40px rgba(0,0,0,0.8),
+    inset 0 0 30px rgba(0,0,0,0.9),
+    0 0 0 4px #1b1b1b;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Vignette (dark corners) and curved screen reflection */
+.screen-frame::before {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0; left: 0; bottom: 0; right: 0;
+  background: radial-gradient(circle, transparent 55%, rgba(0, 0, 0, 0.75) 120%);
+  z-index: 8;
+  pointer-events: none;
+}
+
+/* Subtle curved screen shine */
+.screen-frame::after {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0; left: 0; bottom: 0; right: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 30%, transparent 50%);
+  z-index: 7;
+  pointer-events: none;
+}
+
+.screen-inner {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background-color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#game-canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  box-shadow: 0 0 20px rgba(0,0,0,1);
+}
+
+/* HUD Overlay on screen */
+.hud-overlay {
+  position: absolute;
+  top: 15px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.9rem;
+  letter-spacing: 1px;
+  padding: 6px 12px;
+  background-color: rgba(0, 0, 0, 0.75);
+  border: 1px solid var(--color-primary-dim);
+  border-radius: 4px;
+  color: var(--color-primary);
+  text-shadow: 0 0 5px var(--color-glow);
+  pointer-events: none;
+  z-index: 6;
+  opacity: 0.9;
+}
+
+/* Menu & Pause overlays */
+.menu-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: rgba(0, 0, 0, 0.85);
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.overlay-content {
+  padding: 30px;
+  border-radius: 8px;
+  border: 2px solid var(--color-primary-dim);
+  background-color: var(--color-bg-panel);
+  box-shadow: 0 0 30px rgba(0,0,0,0.5), inset 0 0 15px var(--color-primary-very-dim);
+  max-width: 85%;
+}
+
+.overlay-title {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 1.5rem;
+  margin-bottom: 12px;
+  line-height: 1.4;
+  text-shadow: 0 0 8px var(--color-glow-heavy);
+  animation: text-pulse 2s infinite ease-in-out;
+}
+
+.overlay-subtitle {
+  font-size: 1rem;
+  margin-bottom: 25px;
+  opacity: 0.7;
+}
+
+/* ==========================================================================
+   Buttons and Form Controls
+   ========================================================================== */
+.btn {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1rem;
+  font-weight: bold;
+  padding: 10px 24px;
+  border: 2px solid var(--color-primary);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-primary);
+  cursor: pointer;
+  outline: none;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+  text-shadow: 0 0 5px var(--color-glow);
+  box-shadow: 0 0 5px var(--color-primary-very-dim);
+}
+
+.btn:hover:not(:disabled) {
+  background-color: var(--color-primary);
+  color: var(--color-bg);
+  box-shadow: 0 0 15px var(--color-glow-heavy);
+  text-shadow: none;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: var(--color-primary-dim);
+}
+
+.btn-primary {
+  border-width: 2px;
+  box-shadow: 0 0 8px var(--color-primary-dim);
+}
+
+.btn-secondary {
+  border-color: var(--color-primary-dim);
+  color: var(--color-primary);
+  opacity: 0.9;
+}
+
+.btn-small {
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  border-width: 1px;
+}
+
+/* Footer & Controls guide */
+.game-footer {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.controls-guide {
+  font-size: 0.85rem;
+  opacity: 0.75;
+  display: flex;
+  gap: 20px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* ==========================================================================
+   Glassmorphism Modal Settings Dialog
+   ========================================================================== */
+.glass-modal {
+  margin: auto;
+  border: 2px solid var(--color-primary);
+  border-radius: 12px;
+  background: var(--color-bg-panel);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  color: var(--color-primary);
+  box-shadow: 
+    0 15px 35px rgba(0,0,0,0.6),
+    0 0 30px var(--color-primary-dim);
+  max-width: 480px;
+  width: 90%;
+  z-index: 100;
+  outline: none;
+}
+
+.glass-modal::backdrop {
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+}
+
+.dialog-form {
+  padding: 24px;
+}
+
+.dialog-header {
+  border-bottom: 1px solid var(--color-primary-dim);
+  padding-bottom: 15px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.dialog-header h2 {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 1.1rem;
+  letter-spacing: 1px;
+  text-shadow: 0 0 6px var(--color-glow);
+}
+
+.dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 25px;
+}
+
+.setting-group {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.setting-group label {
+  font-size: 0.95rem;
+  letter-spacing: 0.5px;
+}
+
+.setting-group select {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.95rem;
+  background-color: var(--color-bg);
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary-dim);
+  border-radius: 4px;
+  padding: 6px 12px;
+  outline: none;
+  cursor: pointer;
+  box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
+  min-width: 160px;
+}
+
+.setting-group select:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 5px var(--color-glow);
+}
+
+.checkbox-group {
+  justify-content: flex-start;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.checkbox-group input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.dialog-footer {
+  border-top: 1px solid var(--color-primary-dim);
+  padding-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* ==========================================================================
+   Mobile Controls
+   ========================================================================== */
+.mobile-controls {
+  display: none;
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.touch-zone {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 15%;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.01),
+    rgba(255, 255, 255, 0.01) 10px,
+    rgba(0, 0, 0, 0.05) 10px,
+    rgba(0, 0, 0, 0.05) 20px
+  );
+  border: 1px dashed rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.zone-left { left: 0; border-left: none; }
+.zone-right { right: 0; border-right: none; }
+
+.touch-label {
+  font-size: 0.65rem;
+  letter-spacing: 1px;
+  transform: rotate(-90deg);
+  opacity: 0.4;
+  white-space: nowrap;
+}
+
+/* Display touch zones when mobile layout is active */
+body.is-touch .mobile-controls {
+  display: block;
+}
+
+body.is-touch .touch-zone {
+  opacity: 1;
+}
+
+/* ==========================================================================
+   Animation Keyframes
+   ========================================================================== */
+@keyframes scanline-scroll {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+@keyframes flicker-animation {
+  0% { opacity: 0.15; }
+  50% { opacity: 0.18; }
+  100% { opacity: 0.14; }
+}
+
+@keyframes pulse-colon {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+@keyframes text-pulse {
+  0%, 100% { text-shadow: 0 0 6px var(--color-glow); }
+  50% { text-shadow: 0 0 15px var(--color-glow-heavy); }
+}
+
+/* ==========================================================================
+   Responsive adjustments
+   ========================================================================== */
+@media (max-width: 600px) {
+  .game-title {
+    font-size: 1rem;
+  }
+  
+  .score-val {
+    font-size: 1.6rem;
+  }
+  
+  .scoreboard {
+    padding: 6px 15px;
+    gap: 12px;
+  }
+  
+  .controls-guide {
+    display: none;
+  }
+  
+  .game-footer {
+    justify-content: center;
+  }
+  
+  .screen-frame {
+    border-width: 6px;
+    border-radius: 20px / 15px;
+  }
+}
