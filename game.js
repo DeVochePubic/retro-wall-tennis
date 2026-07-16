@@ -168,10 +168,10 @@ function initThree() {
   scene = new THREE.Scene();
 
   // 3. Create Camera (斜め上のレトロクォータービュー)
-  camera = new THREE.PerspectiveCamera(48, CONFIG.canvasWidth / CONFIG.canvasHeight, 1, 2000);
-  // Positioned left, high, and front, looking towards center-right of the court
-  camera.position.set(-250, 160, 450);
-  camera.lookAt(100, 0, 0);
+  camera = new THREE.PerspectiveCamera(60, CONFIG.canvasWidth / CONFIG.canvasHeight, 1, 2000);
+  // Positioned to fit both the left paddles (around X=-350) and the right wall (X=400) within the frustum
+  camera.position.set(-120, 180, 650);
+  camera.lookAt(60, 0, 0);
 
   // 4. Lights
   ambientLight = new THREE.AmbientLight(0xffffff, 0.15);
